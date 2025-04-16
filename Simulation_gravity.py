@@ -1,13 +1,12 @@
 import pygame
 import math
 import random
-import itertools
 from pygame.math import Vector2
 
 # --- Simulation Parameters ---
 G = 6.674e-2
 BASE_MASS = 1e6
-NUM_BODIES = 3
+NUM_BODIES = 10
 DT = 0.005
 TRAIL_LENGTH = 100
 MIN_BODY_RADIUS = 3
@@ -16,99 +15,24 @@ MASS_SCALING_POWER = 0.33
 SOFTENING = 50
 PREDICTION_STEPS = 50  # Pasos para la predicción de trayectoria
 
-# --- Global List for Active Events ---
-active_events = []
+# --- Colors ---
+BLACK = (0, 0, 0)
+WHITE = (255, 255, 255)
+RED = (255, 80, 80)
+BLUE = (80, 80, 255)
+YELLOW = (255, 255, 80)
+GREEN = (80, 255, 80)
+ORANGE = (255, 165, 0)
+GRAY = (150, 150, 150)
+CENTER_CROSS_COLOR = (100, 100, 100)
+HIGHLIGHT_COLOR = (255, 255, 255)
 
-# --- Constants ---
-info_height = 150  # Altura del panel de información
-WINDOW_TITLE = "N-Body Gravity Simulation with Physics Table"
-
-# Colors
-BLACK = (0, 0, 0); WHITE = (255, 255, 255); RED = (255, 80, 80)
-BLUE = (80, 80, 255); YELLOW = (255, 255, 80); GREEN = (80, 255, 80)
-ORANGE = (255, 165, 0); GRAY = (150, 150, 150)
-CENTER_CROSS_COLOR = (100, 100, 100); HIGHLIGHT_COLOR = (255, 255, 255)
-
-# Label Settings
+# --- UI Settings ---
 FONT_SIZE = 18
 TEXT_COLOR = WHITE
+WINDOW_TITLE = "N-Body Gravity Simulation with Physics Table"
+info_height = 150  # Altura del panel de información
 
-# --- Helper Functions ---
-def draw(self, surface, bodies, selected_body=None):
-   
-    pygame.draw.rect(surface, (20, 20, 40), (self.x, self.y, self.width, self.height))
-    pygame.draw.rect(surface, WHITE, (self.x, self.y, self.width, self.height), 1)
-
-    pygame.draw.rect(surface, (40, 40, 70), (self.x, self.y, self.width, self.row_height))
-    headers = ["Body", "Mass", "Velocity", "Force", "Energy"]
-    
-    # Columnas con mayor espaciado
-    column_widths = [180, 140, 140, 140, 220]  
-
-    for i, header in enumerate(headers):
-        x_pos = self.x + sum(column_widths[:i]) + 20  
-        text = self.header_font.render(header, True, WHITE)
-        surface.blit(text, (x_pos, self.y + 4))
-
-    pygame.draw.line(surface, GRAY, (self.x, self.y + self.row_height),
-                     (self.x + self.width, self.y + self.row_height), 1)
-
-    
-    for i, body in enumerate(bodies):
-        y_pos = self.y + self.row_height + i * self.row_height
-        bg_color = (30, 30, 50) if i % 2 == 0 else (40, 40, 60)
-        if body == selected_body:
-            bg_color = (70, 70, 110)
-        pygame.draw.rect(surface, bg_color, (self.x, y_pos, self.width, self.row_height))
-
-        values = [
-            (body.name, body.color),
-            (f"{body.mass/BASE_MASS:.1f} M", WHITE),
-            (f"{body.velocity.length():.1f}", GREEN),
-            (f"{body.force.length():.1f}", RED),
-            (f"{0.5 * body.mass * body.velocity.length_squared():.1e}", YELLOW)
-        ]
-
-    
-        for j, (text_str, color) in enumerate(values):
-            col_x = self.x + sum(column_widths[:j]) + 20  #
-            text_surface = self.font.render(text_str, True, color)
-            surface.blit(text_surface, (col_x, y_pos + 5))
-
-        
-        for j in range(1, len(column_widths)):
-            x = self.x + sum(column_widths[:j])
-            pygame.draw.line(surface, GRAY, (x, y_pos), (x, y_pos + self.row_height))
-
-
-    self.column_widths = column_widths
-
-
-
-def calculate_center_of_mass(bodies):
-    total_mass = 0.0; weighted_position_sum = Vector2(0, 0)
-    for body in bodies:
-        total_mass += body.mass; weighted_position_sum += body.position * body.mass
-    if total_mass == 0: return Vector2(SCREEN_WIDTH / 2, SCREEN_HEIGHT / 2)
-    else: return weighted_position_sum / total_mass
-
-def is_event_active(event_type, body_ids):
-    global active_events
-    sorted_ids = tuple(sorted(body_ids))
-    for event in active_events:
-        if event['type'] == event_type and tuple(sorted(event['body_ids'])) == sorted_ids:
-            return True
-    return False
-
-def get_velocity_color(velocity):
-    speed = velocity.length()
-    max_speed = 50
-    speed_ratio = min(speed / max_speed, 1.0)
-    red = int(255 * speed_ratio)
-    blue = int(255 * (1 - speed_ratio))
-    return (red, 0, blue)
-
-# --- Body Class ---
 class Body:
     def __init__(self, mass, pos_x, pos_y, vel_x, vel_y, color, name=""):
         self.mass = mass
@@ -204,7 +128,7 @@ class Body:
         screen_position_vec = self.position - camera_offset
         draw_pos_screen = (int(screen_position_vec.x), int(screen_position_vec.y))
 
-        dynamic_color = get_velocity_color(self.velocity)
+        dynamic_color = self.get_velocity_color()
         pygame.draw.circle(surface, dynamic_color, draw_pos_screen, int(self.radius))
 
         vel_end = draw_pos_screen[0] + int(self.velocity.x), draw_pos_screen[1] + int(self.velocity.y)
@@ -219,7 +143,14 @@ class Body:
         label_rect = label_surface.get_rect(center=(draw_pos_screen[0], draw_pos_screen[1] - self.radius - 10))
         surface.blit(label_surface, label_rect)
 
-# --- Physics Table Class ---
+    def get_velocity_color(self):
+        speed = self.velocity.length()
+        max_speed = 50
+        speed_ratio = min(speed / max_speed, 1.0)
+        red = int(255 * speed_ratio)
+        blue = int(255 * (1 - speed_ratio))
+        return (red, 0, blue)
+
 class PhysicsTable:
     def __init__(self, x, y, width, height, font):
         self.x = x
@@ -229,133 +160,157 @@ class PhysicsTable:
         self.font = font
         self.header_font = pygame.font.SysFont(None, FONT_SIZE, bold=True)
         self.row_height = 25
-        self.column_widths = [120, 80, 80, 80, 80, 80]
+        self.column_widths = [180, 140, 140, 140, 220]  # Ajustado para mejor visualización
 
     def draw(self, surface, bodies, selected_body=None):
-        pygame.draw.rect(surface, (30, 30, 50), (self.x, self.y, self.width, self.height))
+        pygame.draw.rect(surface, (20, 20, 40), (self.x, self.y, self.width, self.height))
         pygame.draw.rect(surface, WHITE, (self.x, self.y, self.width, self.height), 1)
 
-        headers = ["Body", "Mass", "Position", "Velocity", "Force", "Energy"]
+        pygame.draw.rect(surface, (40, 40, 70), (self.x, self.y, self.width, self.row_height))
+        headers = ["Body", "Mass", "Velocity", "Force", "Energy"]
+        
         for i, header in enumerate(headers):
-            x_pos = self.x + sum(self.column_widths[:i]) + 5
+            x_pos = self.x + sum(self.column_widths[:i]) + 20
             text = self.header_font.render(header, True, WHITE)
-            surface.blit(text, (x_pos, self.y + 5))
+            surface.blit(text, (x_pos, self.y + 4))
 
-        pygame.draw.line(surface, WHITE, (self.x, self.y + self.row_height),
+        pygame.draw.line(surface, GRAY, (self.x, self.y + self.row_height),
                          (self.x + self.width, self.y + self.row_height), 1)
 
         for i, body in enumerate(bodies):
             y_pos = self.y + self.row_height + i * self.row_height
+            bg_color = (30, 30, 50) if i % 2 == 0 else (40, 40, 60)
             if body == selected_body:
-                pygame.draw.rect(surface, (80, 80, 120), (self.x, y_pos, self.width, self.row_height))
+                bg_color = (70, 70, 110)
+            pygame.draw.rect(surface, bg_color, (self.x, y_pos, self.width, self.row_height))
 
-            text = self.font.render(body.name, True, body.color)
-            surface.blit(text, (self.x + 5, y_pos + 5))
+            values = [
+                (body.name, body.color),
+                (f"{body.mass/BASE_MASS:.1f} M", WHITE),
+                (f"{body.velocity.length():.1f}", GREEN),
+                (f"{body.force.length():.1f}", RED),
+                (f"{0.5 * body.mass * body.velocity.length_squared():.1e}", YELLOW)
+            ]
 
-            text = self.font.render(f"{body.mass/BASE_MASS:.1f} M", True, WHITE)
-            surface.blit(text, (self.x + self.column_widths[0] + 5, y_pos + 5))
+            for j, (text_str, color) in enumerate(values):
+                col_x = self.x + sum(self.column_widths[:j]) + 20
+                text_surface = self.font.render(text_str, True, color)
+                surface.blit(text_surface, (col_x, y_pos + 5))
 
-            pos_text = f"({body.position.x:.1f}, {body.position.y:.1f})"
-            text = self.font.render(pos_text, True, WHITE)
-            surface.blit(text, (self.x + sum(self.column_widths[:2]) + 5, y_pos + 5))
+            for j in range(1, len(self.column_widths)):
+                x = self.x + sum(self.column_widths[:j])
+                pygame.draw.line(surface, GRAY, (x, y_pos), (x, y_pos + self.row_height))
 
-            vel_text = f"{body.velocity.length():.1f}"
-            text = self.font.render(vel_text, True, GREEN)
-            surface.blit(text, (self.x + sum(self.column_widths[:3]) + 5, y_pos + 5))
+def calculate_center_of_mass(bodies):
+    total_mass = 0.0
+    weighted_position_sum = Vector2(0, 0)
+    for body in bodies:
+        total_mass += body.mass
+        weighted_position_sum += body.position * body.mass
+    if total_mass == 0: 
+        return Vector2(SCREEN_WIDTH / 2, SCREEN_HEIGHT / 2)
+    else: 
+        return weighted_position_sum / total_mass
 
-            force_text = f"{body.force.length():.1f}"
-            text = self.font.render(force_text, True, RED)
-            surface.blit(text, (self.x + sum(self.column_widths[:4]) + 5, y_pos + 5))
+def main():
+    pygame.init()
+    pygame.font.init()
 
-            kinetic_energy = 0.5 * body.mass * body.velocity.length_squared()
-            energy_text = f"{kinetic_energy:.1e}"
-            text = self.font.render(energy_text, True, YELLOW)
-            surface.blit(text, (self.x + sum(self.column_widths[:5]) + 5, y_pos + 5))
+    screen_info = pygame.display.Info()
+    SCREEN_WIDTH = screen_info.current_w
+    SCREEN_HEIGHT = screen_info.current_h - info_height if screen_info.current_h > 768 else screen_info.current_h
 
-# --- Initialization ---
-pygame.init()
-pygame.font.init()
+    screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT + info_height), 
+                                   pygame.FULLSCREEN if screen_info.current_h > 768 else 0)
+    pygame.display.set_caption(WINDOW_TITLE)
+    clock = pygame.time.Clock()
+    font = pygame.font.SysFont('Arial', FONT_SIZE)
+    bold_font = pygame.font.SysFont('Arial', FONT_SIZE, bold=True)
 
-screen_info = pygame.display.Info()
-SCREEN_WIDTH = screen_info.current_w
-SCREEN_HEIGHT = screen_info.current_h - info_height if screen_info.current_h > 768 else screen_info.current_h
+    # Create 5 bodies
+    bodies = []
+    initial_offset_x = SCREEN_WIDTH // 2
+    initial_offset_y = SCREEN_HEIGHT // 2
+    star_mass = 500 * BASE_MASS
 
-screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT + info_height), pygame.FULLSCREEN if screen_info.current_h > 768 else 0)
-pygame.display.set_caption(WINDOW_TITLE)
-clock = pygame.time.Clock()
-font = pygame.font.SysFont('Arial', FONT_SIZE)
-bold_font = pygame.font.SysFont('Arial', FONT_SIZE, bold=True)
+    # Central star
+    bodies.append(Body(mass=star_mass, pos_x=initial_offset_x, pos_y=initial_offset_y,
+                      vel_x=0, vel_y=0, color=YELLOW, name="Star"))
 
-# --- Create Bodies ---
-bodies = []
-initial_offset_x = SCREEN_WIDTH // 2
-initial_offset_y = SCREEN_HEIGHT // 2
-star_mass = 500 * BASE_MASS
+    # Create 4 orbiting bodies
+    colors = [BLUE, RED, GREEN, ORANGE]
+    for i in range(4):
+        angle = 2 * math.pi * i / 4  # Distribute evenly around the star
+        distance = 150 + i * 50  # Incremental distance
+        velocity = math.sqrt(G * star_mass / distance) * (0.9 + 0.1 * i)  # Slightly varying velocities
+        
+        pos_x = initial_offset_x + distance * math.cos(angle)
+        pos_y = initial_offset_y + distance * math.sin(angle)
+        vel_x = -velocity * math.sin(angle)
+        vel_y = velocity * math.cos(angle)
+        
+        bodies.append(Body(mass=(10 + i*5) * BASE_MASS, 
+                          pos_x=pos_x, pos_y=pos_y,
+                          vel_x=vel_x, vel_y=vel_y,
+                          color=colors[i],
+                          name=f"Planet {chr(65+i)}"))
 
-bodies.append(Body(mass=star_mass, pos_x=initial_offset_x, pos_y=initial_offset_y,
-                    vel_x=0, vel_y=0, color=YELLOW, name="Star"))
+    physics_table = PhysicsTable(10, SCREEN_HEIGHT + 10, SCREEN_WIDTH - 20, info_height - 20, font)
 
-dist1 = 150
-v1 = math.sqrt(G * star_mass / dist1)
-bodies.append(Body(mass=10 * BASE_MASS, pos_x=initial_offset_x + dist1, pos_y=initial_offset_y,
-                    vel_x=0, vel_y=v1 * 1.1, color=BLUE, name="Planet A"))
+    # Main loop
+    running = True
+    draw_predictions = True
+    selected_body = None
+    screen_center = Vector2(SCREEN_WIDTH / 2, SCREEN_HEIGHT / 2)
 
-dist2 = 250
-v2 = math.sqrt(G * star_mass / dist2)
-bodies.append(Body(mass=25 * BASE_MASS, pos_x=initial_offset_x, pos_y=initial_offset_y - dist2,
-                    vel_x=-v2 * 0.9, vel_y=0, color=RED, name="Planet B"))
-
-physics_table = PhysicsTable(10, SCREEN_HEIGHT + 10, SCREEN_WIDTH - 20, info_height - 20, font)
-
-# --- Main Loop ---
-running = True
-sim_time = 0.0
-frame_count = 0
-draw_predictions = True
-selected_body = None
-screen_center = Vector2(SCREEN_WIDTH / 2, SCREEN_HEIGHT / 2)
-
-while running:
-    for event in pygame.event.get():
-        if event.type == pygame.QUIT:
-            running = False
-        elif event.type == pygame.KEYDOWN:
-            if event.key == pygame.K_ESCAPE:
+    while running:
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
                 running = False
-            elif event.key == pygame.K_p:
-                draw_predictions = not draw_predictions
-            elif event.key == pygame.K_1:
-                selected_body = bodies[0] if len(bodies) > 0 else None
-            elif event.key == pygame.K_2:
-                selected_body = bodies[1] if len(bodies) > 1 else None
-            elif event.key == pygame.K_3:
-                selected_body = bodies[2] if len(bodies) > 2 else None
+            elif event.type == pygame.KEYDOWN:
+                if event.key == pygame.K_ESCAPE:
+                    running = False
+                elif event.key == pygame.K_p:
+                    draw_predictions = not draw_predictions
+                elif event.key == pygame.K_1:
+                    selected_body = bodies[0] if len(bodies) > 0 else None
+                elif event.key == pygame.K_2:
+                    selected_body = bodies[1] if len(bodies) > 1 else None
+                elif event.key == pygame.K_3:
+                    selected_body = bodies[2] if len(bodies) > 2 else None
+                elif event.key == pygame.K_4:
+                    selected_body = bodies[3] if len(bodies) > 3 else None
+                elif event.key == pygame.K_5:
+                    selected_body = bodies[4] if len(bodies) > 4 else None
 
-    for body in bodies:
-        body.calculate_force(bodies)
-    for body in bodies:
-        body.update_position_verlet()
-    for body in bodies:
-        body.calculate_force(bodies)
-    for body in bodies:
-        body.update_velocity_verlet()
-
-    if draw_predictions:
+        # Physics updates
         for body in bodies:
-            body.predicted_trajectory = body.predict_trajectory(bodies, PREDICTION_STEPS)
+            body.calculate_force(bodies)
+        for body in bodies:
+            body.update_position_verlet()
+        for body in bodies:
+            body.calculate_force(bodies)
+        for body in bodies:
+            body.update_velocity_verlet()
 
-    screen.fill(BLACK)
-    center_of_mass = calculate_center_of_mass(bodies)
-    camera_offset = center_of_mass - screen_center
+        if draw_predictions:
+            for body in bodies:
+                body.predicted_trajectory = body.predict_trajectory(bodies, PREDICTION_STEPS)
 
-    for body in bodies:
-        body.draw(screen, font, camera_offset, center_of_mass, draw_prediction=draw_predictions)
+        # Drawing
+        screen.fill(BLACK)
+        center_of_mass = calculate_center_of_mass(bodies)
+        camera_offset = center_of_mass - screen_center
 
-    physics_table.draw(screen, bodies, selected_body)
+        for body in bodies:
+            body.draw(screen, font, camera_offset, center_of_mass, draw_prediction=draw_predictions)
 
-    pygame.display.flip()
-    clock.tick(60)
-    sim_time += DT
-    frame_count += 1
+        physics_table.draw(screen, bodies, selected_body)
 
-pygame.quit()
+        pygame.display.flip()
+        clock.tick(60)
+
+    pygame.quit()
+
+if __name__ == "__main__":
+    main()
