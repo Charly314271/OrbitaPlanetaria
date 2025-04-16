@@ -44,10 +44,19 @@ El cálculo y la visualización de las trayectorias predichas se realizan solo c
 
 
 # Parametros que se pueden ajustar 
-G = 6.674e-2           Constante de gravitación universal (ajustada para la escala de la simulación)
-BASE_MASS = 1e6        Unidad de masa base para la normalización en la tabla
-NUM_BODIES = 3         Número inicial de cuerpos en la simulación
-DT = 0.005             Intervalo de tiempo (paso) de la simulación en segundos
-TRAIL_LENGTH = 100     Número máximo de puntos guardados para la visualización de la trayectoria
-SOFTENING = 50         Parámetro de suavizado para evitar singularidades gravitacionales
-PREDICTION_STEPS = 50  Número de pasos futuros a simular para la predicción de la trayectoria
+G = 6.674e-2           #Constante de gravitación universal (ajustada para la escala de la simulación)
+BASE_MASS = 1e6        #Unidad de masa base para la normalización en la tabla
+NUM_BODIES = 3         #Número inicial de cuerpos en la simulación
+DT = 0.005             #Intervalo de tiempo (paso) de la simulación en segundos
+TRAIL_LENGTH = 100     #Número máximo de puntos guardados para la visualización de la trayectoria
+SOFTENING = 50         #Parámetro de suavizado para evitar singularidades gravitacionales
+PREDICTION_STEPS = 50  #Número de pasos futuros a simular para la predicción de la trayectoria
+
+
+# Bibliografia
+
+Binney, J., & Tremaine, S. (2008). Galactic Dynamics (2nd ed.). Princeton University Press.
+
+Frenkel, D., & Smit, B. (2002). Understanding Molecular Simulation (2nd ed.). Academic Press.
+
+Pygame Contributors. (2023). Pygame Documentation [Software]. https://www.pygame.org/docs/
